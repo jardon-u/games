@@ -5,88 +5,109 @@ __lua__
 -- author: log0
 -- 
 --todo:
--- bomb closed doors
--- push bomb with tears
--- prevent pushing drops in rocks
--- room doors based on types
--- enemy can shoot
--- boss patterns
--- crystal cave
--- final boss (it lives)
--- hold shoot always same dir ?
--- pack items and use sspr
--- item combinations
--- pickup drop animation
+-- more/better boss patterns
+-- add more items
+-- add spider enemies
+-- dif emies based on level
+-- -- bomb closed doors
+-- -- prevent pushing drops in rocks
+-- -- hold shoot always same dir ?
 --bugs:
--- fix first level_gen hang
+-- godhead overkill
+-- more than 6 hearts ?
+-- locked rooms up and left
 -- diagonal move should be 1
 -- tear speed depends on speed
--- fix palette of emies at night
--- boss different when reentering
 -- fix boss missing sometimes
--- drop in rocks
--- better bomb push
 -- stuck inside it lives
--- rock drops not below rocks
+-- resurect can block you
+-- sometimes supersecret appears at start
+-- enemies double when reentering
+
+-- only issue with door seems to be
+-- changing the status of the door
+-- having door objects seems to
+-- conflict with the solid block logic
+-- better just look at isaac position
+-- and hardset doors
+
 
 function begin()end
 p = {
- life    = 3,
- blife   = 1,
- maxlife = 3,
- bombs   = 9,
- keys    = 1,
- speed   = 1,
- lives   = 0,
+ life=6, blife=0, maxlife=6,
+ lives = 0,
+ bombs = 1,
+ keys  = 0,
  -- position
  x=64, y=72,
  -- cell width.height
- wx=2, wy=2,
+ w=16, h=16,
  --sprite
  s = 64,
  -- sprite sequence
- anim = {66,66,66,66,66,
-         70,70,70,70,70,
-         68,68,68,68,68,
-         70,70,70,70,70},
+ --anim = {66,66,66,66,66,
+ --        70,70,70,70,70,
+ --        68,68,68,68,68,
+ --        70,70,70,70,70},
+ anim = {{66,5},{70,5},
+         {68,5},{70,5}},
  -- anim index
  a = 1,
  -- flip sprite
  f = false,
- -- gauge
- invincible=0,
- cooldown=0,
- bcooldown=0,
- -- tear properties
- tear_rate=2,
- tsize=3,
- tcolor=7,
+ -- timers
+ invincible = 0,
+ cooldown   = 0,
+ bcooldown  = 0,
+ -- stats
+ speed = 1,
+ deal  = 0,
+ tear_rate = 2,
+ tsize     = 3,
+ tcolor    = 7,
  -- items state
  double_shot=false,
- proptosis=false,
+ proptosis  =false,
  holy_mantle=false,
- mind=true,
- whore=false,
- god=false,
- ipecac=false,
- mine={},
+ mind       =true,//false,
+ whore      =false,
+ god        =false,
+ ipecac     =false,
+ mine       ={},
  -- curse
  curse_night=false,
 }
 
+function p:damage()
+	local d=p.tsize/5
+	if (p.whore and p.life<=1) d+=0.5
+	return d
+end
+
 function p:hurt(v)
-	if v > self.blife then
-		v -= self.blife
-		self.blife=0
-		self.life -= v
-	else
-		self.blife -= v
+ p.tcolor=upd_tear_color()
+ if p.invincible>0 then
+  return
+ end
+ sfx(1)
+
+ if not (p.holy_mantle and
+         cr.no_hit) then
+	 if v > self.blife then
+	 	v -= self.blife
+	 	self.blife=0
+	 	self.life -= v
+	 	self.deal/=2
+	 else
+	 	self.blife -= v
+	 end
 	end
+ p.invincible=30
+	cr.no_hit=false
 end
  
 -- move player
 function p.move()
- local r=level[rj][ri]
  p.s=64
  if p.vx!=0 or p.vy!=0 then
   p.s,p.a = rot(p.anim, p.a)
@@ -94,25 +115,32 @@ function p.move()
  p.f=p.vx>0
  local nx=p.x+p.vx
  local ny=p.y+p.vy
-	if solida(nx-4,p.y,7,6) then
-  nx=p.x
- end
- if solida(p.x-4,ny,7,6) then
-  ny=p.y
- end
+//	if solida(nx-4,p.y,7,6) then
+//  nx=p.x
+// end
+// if solida(p.x-4,ny,7,6) then
+//  ny=p.y
+// end
  local newpx={s=p.s,
   x=nx,y=p.y,
-  wx=0.8,wy=0.8}
+  w=7,h=7}
  local newpy={s=p.s,
   x=p.x,y=ny,
-  wx=0.8,wy=0.8}
+  w=7,h=7}
  local dohitx=false
  local dohity=false
- for ro in all(r.rocks) do
-  if hit(newpx,ro,-1) then
+ for ro in all(cr.rocks) do
+  if ro.s==s_trap and
+     room_timer > 60 and
+     hit(p,ro,-2) then
+   level_i += 1
+   if (level_i > 1) p.deal=100
+   reset(levels[level_i].size)
+  end
+  if hit(newpx,ro,-1,false) then
    dohitx=true
   end
-  if hit(newpy,ro,-1) then
+  if hit(newpy,ro,-1,false) then
    dohity=true
   end
  end
@@ -123,20 +151,14 @@ function p.move()
   p.y=ny
  end
 
- local np={x=nx,y=ny}
- for el in all(r.elts) do
-  local dee=dist(np,el)
-  if dee<5 then
-   local vx,vy=0,0
-   if dee!=0 then
-    vx=(el.x-p.x)/dee
-    vy=(el.y-p.y)/dee
-   end
-   el.x+=vx
-   el.y+=vy
-   break
-  end
- end
+ -- push pickups
+ --for e in all(cr.elts) do
+ -- local d=dist(p,e)
+ -- if d<5 and d!=0 then
+ --  	e.x+=(e.x-p.x)/d*2
+ --  	e.y+=(e.y-p.y)/d*2
+ -- end
+ --end
  
  -- update last player dir
  if p.vx!=0 or p.vy!=0 then
@@ -144,40 +166,45 @@ function p.move()
   lx,ly=p.vx,p.vy
  end
  
- --todo fix trap is 2x2
- if touch(p.x-4,p.y,8,8,s_trap) then
-  level_i += 1
-  reset(levels[level_i].size)
- end
- 
  --todo fix touching locked doors
- if touch(nx-4,ny,8,8,216) or
-    touch(nx-4,ny,8,8,217) or
-    touch(nx-4,ny,8,8,230) or
-    touch(nx-4,ny,8,8,246)
- then
-  if #level[rj][ri].emies==0 and
-     p.keys > 0 then
-   p.keys-=1
-   local cands = {
-    {ri-1,rj}, {ri+1,rj},
-    {ri,rj-1}, {ri,rj+1}
-   }
-   for c in all(cands) do
-    local i,j=c[1],c[2]
-    level[j][i].locked=false
-   end
-   gen_room(ri,rj)
-  end
+ --if touch(nx-4,ny,10,10,216) or
+ --   touch(nx-4,ny,10,10,217) or
+ --  touch(nx-4,ny,10,10,230) or
+ --   touch(nx-4,ny,10,10,246)
+ --then
+ -- if #level[rj][ri].emies==0 and
+ --    p.keys > 0 then
+ --  p.keys-=1
+ --  --todo get room from current pos
+ --  _,rooms=nbgh(ri,rj,level)
+ --  for c in all(rooms) do
+ --   local i,j=c[1],c[2]
+ --   level[j][i].locked=false
+ --  end
+ --  gen_room(ri,rj)
+ -- end
+ --end
+ --not ok because doors span on
+ -- several cells
+ checkdoors(nx,ny,10,10)
+end
+
+function p:draw()
+ if self.holy_mantle and
+    cr.no_hit then
+  circ(p.x-1,p.y+4, 4, 12)
+  circ(p.x-1,p.y+4, 6, 13)
  end
+ if (p.whore and p.life<=1) pal(15,8)
+ draw(p)
+ pal()
 end
 
 -- draw the minimap
-function draw_minimap()
- local x,y=95,3
- --rect(4+x-1,3+y,
- --     x+(gridw+1)*4+1,
- --     y+(gridh+1)*3,6)
+function draw_minimap(x,y)
+ --rectfill(4+x-1,2+y,
+ --        x+(gridw+1)*4+1,
+ --        y+(gridh+1)*3+1,6)
  for i=1,gridh do
  for j=1,gridw do
   local r=level[j][i]
@@ -186,7 +213,7 @@ function draw_minimap()
    local c=7
    local t=r.type
    if not r.visited and
-      t==s_classic then
+     t==r_classic then
     t = -1
    end
    c=roomcolor(t)
@@ -201,11 +228,36 @@ function draw_minimap()
       x+rj*4+5,y+ri*3+4,7)
 end
 
+function gauge(x,y,min,max,v)
+	local step=(max-min)/3
+	for i=2,0,-1 do
+	 c=7
+		if (v<step*i or v==0) c=5
+		line(x+i*2,y,x+i*2,y+2,c)
+	end
+end
 
-function draw_hud()
- --drawlife
+function draw_stats(x,y)
+ sspr(8,4,4,4,  x   ,y)
+ gauge(x,y+5,0,4,p.tear_rate)
+ x+=8
+ sspr(12,0,4,4, x   ,y)
+ gauge(x,y+5,0,2,p.speed)
+ x+=8
+ sspr(8,0,4,4,  x   ,y)
+ gauge(x,y+5,0,5,p.damage())
+ x+=8
+ sspr(12,4,4,4,  x   ,y)
+	gauge(x,y+5,0,100,p.deal)
+end
+
+function draw_life(x,y)
+ print("  - life -  ", x, y-7,8)
+ if p.lives>0 then
+  print("x",    x-4,y+2,8)
+  print(p.lives,x-4,y+8,8)
+ end
  local fullhp=flr(p.life)
- local x,y=8,4
  for i=0,p.maxlife-1 do
   if i<fullhp then
    spr(35,x+i*8,y,1,1)
@@ -229,35 +281,35 @@ function draw_hud()
   end
  end
  pal()
- if p.lives>0 then
-  print("x"..p.lives,0,y+2,8)
- end
- --draw bombs
- local xb=57
- spr(s_bomb, xb, y)
- print(":"..p.bombs,xb+8,y+2,7)
- --draw keys
- spr(s_key, xb+21, y)
- print(":"..p.keys,xb+30,y+2,7)
- -- draw stats
- local x,y=4,16
- local si,sp,tr=p.tsize,p.speed,p.tear_rate
- sspr(8,4,4,4,  x   ,y)
- print(":"..tr, x+4    ,y,7)
- x+=21
- sspr(12,0,4,4, x   ,y)
- print(":"..sp, x+4 ,y,12)
- x+=20
- sspr(8,0,4,4,  x   ,y)
- print(":"..si, x+4 ,y,8)
 end
 
+function draw_hud()
+ minimapx,minimapy=0,3 //92,3
+ draw_minimap(minimapx,minimapy)
+ draw_life(80,14) // 4,4
+ --draw bombs
+ statsx=45
+ spr(s_bomb, statsx-4, 4)
+ print(":"..p.bombs,statsx+4,6,7)
+ --draw keys
+ spr(s_key, statsx+17, 4)
+ print(":"..p.keys,statsx+25,6,7)
+ -- draw stats 98,121
+ draw_stats(statsx,14)
+ --item tracker
+ for i=1,#p.mine do
+ 	local p=p.mine[#p.mine+1-i]
+  sspr(p.px,p.py,p.w,p.h,
+  	   (i-1)*14,116)
+ end
+end
 
 function reset(nb_rooms)
- gridw,gridh=6,5
+ gridw,gridh=8,5
  p.x,p.y=64,72
 
- tears = {}
+ tears={}
+ etears={}
  screen_time=30
  screen_msg=levels[level_i].name
 
@@ -267,7 +319,7 @@ function reset(nb_rooms)
  -- current room
  ri=ceil(rnd(gridh))
  rj=ceil(rnd(gridw))
- level=genlevel(ri,rj,nb_rooms)
+ level,rooms=genlevel(ri,rj,nb_rooms)
  -- last room
  lri,lrj=ri,rj
  gen_room(ri,rj)
@@ -275,12 +327,15 @@ end
 
 -- global init
 function _init()
- particles={}
+	build_items()
+	debug=false
+	anims={}
+	doors={}
  messages={}
  circles={}
  level_i=1
  reset(levels[level_i].size)
- r=level[rj][ri]
+ current=level[rj][ri]
 end
 
 function sort_y(t)
@@ -290,31 +345,36 @@ function sort_y(t)
  qsort(t,1,#t,_y)
 end
 
--- fixme draw everything like this
 function draw_all()
- local r=level[rj][ri]
  local as={p}
- for e in all(r.emies) do
-  add(as,e)
+ for e in all(doors) do
+  if (e.draw) then
+   e:draw()
+  else draw(e)
+  end
  end
- for ro in all(r.rocks) do
- 	add(as,ro)
- end
- for e in all(r.elts) do
- 	add(as,e)
+ for ee in all({cr.emies,
+                cr.rocks,
+                cr.elts,
+                cr.items}) do
+  for e in all(ee) do
+   add(as,e)
+  end
  end
  sort_y(as)
- if p.holy_mantle and
-    r.no_hit then
-  circ(p.x-1,p.y+4, 4, 12)
-  circ(p.x-1,p.y+4, 6, 13)
- end
  for a in all(as) do
   if a.draw == nil then
    draw(a)
   else
    a:draw()
   end
+ end
+
+ for t in all(etears) do
+  t:draw()
+ end
+ for t in all(tears) do
+  t:draw()
  end
 end
 
@@ -329,11 +389,12 @@ function roomcolor(v)
  return cmap[v] or 0
 end
 
-function draw_bosslife(r)
- local b = r.emies[1]
+function draw_bosslife()
+	if (cr.emies==nil) return
+ local b = cr.emies[1]
  if b then
   local ratio=b.life/b.maxlife
-  if ratio > 0 then
+  if ratio>0 then
    rectfill(10,33,117,38,0)
    rectfill(11,34,
             11+105*ratio,37,8)
@@ -346,7 +407,7 @@ function draw_msg()
   local message=messages[1][1]
   local timer=messages[1][2]
   messages[1][2] -= 1
-  if timer > 0 then
+  if timer>0 then
     local x,y=28,35
     local nlines=#message
     rect(x-1,y-1,128-x+1,
@@ -357,8 +418,7 @@ function draw_msg()
     local c=7
     if (i==0) c=10
     print(message[i+1],
-          x+1,y+2+i*8,
-          c)
+          x+1,y+2+i*8,c)
    end
   else
    del(messages,messages[1])
@@ -369,10 +429,10 @@ end
 -- main draw
 function _draw()
  cls()
- pal()
  
  if screen_time > 0 then
-  print(screen_msg,48,60,7)
+ 	local x=64-#screen_msg/2*4
+  print(screen_msg,x,60,7)
   return
  end
 
@@ -384,38 +444,20 @@ function _draw()
   return
  end
 
- local r=level[rj][ri]
-
- --if --p.curse_night or
- if r.type == r_secret then
-  nightpal()
- elseif r.type == r_evil then
-  evilpal()
- else
-  --pal(12,roomcolor(r.type))
- end
- 
- draw_dwalls(levels[level_i].theme)
+ draw_dwalls(cr.theme)
  mmap()
 
  draw_all()
- draw_tears(t)
- if r.type == r_boss then
-  draw_bosslife(r)
+ if cr.type == r_boss then
+  draw_bosslife()
  end
 
  draw_msg()
 
  pal()
  
- --item tracker
- for i=1,#p.mine do
-  spr(p.mine[#p.mine-i+1],
-     (i-1)*16,112,
-     2,2)
- end
- draw_minimap()
  draw_hud()
+ draw_anims()
 end
 
 -- change room if necessary
@@ -466,8 +508,18 @@ function upd_gameover()
  end
 end
 
-function upd_elts(r)
- for e in all(r.elts) do  
+function upd_elts()
+ for i in all(cr.items) do
+ 	if hit(p,i) then
+ 	 if pickitem(i) then
+    add(messages,{{i.n,i.d},120})
+    add(p.mine, i)
+    del(cr.items, i)
+    sfx(0)
+   end
+ 	end
+ end
+ for e in all(cr.elts) do  
   if hit(p,e) then
    local take=false
    if p.maxlife-p.life>0 then
@@ -492,13 +544,9 @@ function upd_elts(r)
    elseif e.s == s_bomb then
     p.bombs += 1
     take=true
-   elseif pickitem(e) then
-    add(messages, {{e.n,e.d},120})
-    add(p.mine, e.s)
-    take=true
    end
    if take then
-    del(r.elts,e)
+    del(cr.elts,e)
     sfx(0)
    end
   end
@@ -510,17 +558,17 @@ end
 function _update60()
  keys:update()
 
- if screen_time > 0 then
+ if screen_time>0 then
   screen_time-=1
   return
  end
- if p.cooldown > 0 then
+ if p.cooldown>0 then
   p.cooldown-=1
  end
- if p.bcooldown > 0 then
+ if p.bcooldown>0 then
   p.bcooldown-=1
  end
- if p.invincible > 0 then
+ if p.invincible>0 then
   p.invincible-=1
  end
  
@@ -528,14 +576,14 @@ function _update60()
  
  if p.life<=0 and
     p.blife<=0 then
-  if p.lives<=0 then
+  if p.lives <= 0 then
    upd_gameover()
    return
   else
    p.lives -= 1
-   p.life=1
-   p.blife=0
-   p.maxlife=1
+   p.life    = 1
+   p.blife   = 0
+   p.maxlife = 1
    p.x,p.y=64,72
    screen_time=60
    screen_msg="  x"..p.lives
@@ -550,22 +598,41 @@ function _update60()
  if (keys:held(2)) p.vy-=p.speed
  if (keys:held(3)) p.vy+=p.speed
  if (keys:held(0)) p.vx-=p.speed
+-- local norm=sqrt(p.vx*p.vx-p.vy*p.vy)
+--	if norm > 0.0001 then
+--		p.vx/=norm*p.speed
+--	 p.vy/=norm*p.speed
+-- end
 
  upd_room()
 
- local r=level[rj][ri]
-
  shoot_tears()
- upd_bomb(r)
- upd_elts(r)
+ upd_bomb()
+ upd_elts()
  upd_emies()
  upd_tears()
- update_particles()
+ upd_etears()
  p.move()
 end
 
 -->8
 -- utils
+
+function ssplit(s,sep)
+	local ret={}
+	local buff=""
+	for i=1,#s do
+	 if sub(s,i,i)==sep then
+	 	add(ret,buff)
+	 	buff=""
+	 else
+	 	buff = buff..sub(s,i,i)
+	 end
+	end
+	if (buff!="") add(ret,buff)
+	return ret
+end
+
 
 -- pick random element in t
 function rpick(t)
@@ -616,11 +683,9 @@ function drop(e,r)
  r=r or level[rj][ri]
  for j=0,4 do
   for i=0,j+1 do
-   local x=e.x+j*8
-   local y=e.y+i*8
-   local ne={ x=x, y=x,
-     wx=e.wx, wy=e.wy 
-   }
+   local x=e.x+j*16
+   local y=e.y+i*16
+   local ne={x=x,y=x,w=e.w,h=e.h}
    if not hit_rocks(ne,r) then
     e.x,e.y=x,y
     return
@@ -629,29 +694,30 @@ function drop(e,r)
  end
 end
 
+itemtc={
+ 1,2,3,4,
+ 5,6,7,8,
+ 9,10,11,10,
+ 13,14,15,16,
+}
+bosstc={
+ 1,2,3,4,
+ 5,6,7,8,
+ 9,10,11,8,
+ 13,14,15,16,
+}
 nighttc={
  0,0,0,0,
  5,5,6,7,
  6,6,7,6,
  6,5,5,7,
 }
-function nightpal()
- for c=1,16 do
-  pal(c-1,nighttc[c])
- end
-end
-
 eviltc={
  0,0,0,0,
  9,9,14,7,
  14,14,7,14,
  14,9,9,7,
 }
-function evilpal()
- for c=1,16 do
-  pal(c-1,eviltc[c])
- end
-end
 
 -- quick sort
 function qsort(t,i,j,op)
@@ -678,11 +744,21 @@ end
 
 -- rotate index i over table t
 function rot(t, i)
- i += 1
- if i > #t then
-  i = 1
+ local k,j=1,i
+ while j>t[k][2] and k<=#t do
+ 	j-=t[k][2]
+ 	k+=1
+ 	if (k==#t+1) then
+ 	  k=1
+ 	  i=j
+ 	end
  end
- return t[i], i
+ return t[k][1], i+1
+-- i += 1
+-- if i > #t then
+--  i = 1
+-- end
+-- return t[i], i
 end
 
 -- rotate 2d vec 90 degrees
@@ -733,13 +809,31 @@ function touch(x,y,w,h,s)
  return #touchwhat(x,y,w,h,s) != 0
 end
 
+function checkdoors(x,y,w,h)
+	for j=flr(x/8),flr((x+w)/8) do
+ for i=flr(y/8),flr((y+h)/8) do
+  if i>=0 and i<16 and
+     j>=0 and j<16 then
+   local cell = mmget(j,i)
+   if cell.locked then
+    if p.keys > 0 then
+    	p.keys -= 1
+    	cell.locked=false
+    	cell.s-=1
+    end
+   end
+  end
+ end
+ end
+end
+
 
 --true if pixel x,y is part
 -- of sprite e
 function psolid(e,x,y)
  -- coord in sprite
- local xsp = x-(e.x-e.wx*4)
- local ysp = y-(e.y-e.wy*4)
+ local xsp = x-(e.x-e.w/2)
+ local ysp = y-(e.y-e.h/2)
  -- coordinate in sprite sheet
  local v=1
  if e.s != nil then
@@ -767,23 +861,26 @@ end
 -- todo zonea, zoneb
 function hit(a,b,zone,pixel)
  zone = zone or 0
- --pixel = pixel or true
- local aw=a.wx*4+zone
- local bw=b.wx*4+zone
+ if (pixel==nil) pixel=true
+ local aw=a.w/2+zone
+ local bw=b.w/2+zone
  local x_left=max(a.x-aw,b.x-bw)
  local x_right=min(a.x+aw,b.x+bw)
  if x_right < x_left then
   return false
  end
- local ah=a.wy*4+zone
- local bh=b.wy*4+zone
+ local ah=a.h/2+zone
+ local bh=b.h/2+zone
  local y_top=max(a.y-ah,b.y-bh)
  local y_bottom=min(a.y+ah,b.y+bh)
  if y_bottom < y_top then
   return false
  end
 
- if (not pixel) return true
+ if not pixel then
+  return true
+ end
+
  local inter={
   x1=x_left,
   x2=x_right,
@@ -797,16 +894,17 @@ end
 -- draw element
 function draw(e)
  if debug then
-  rect(e.x-e.wx*8/2-1,
-     	 e.y-e.wy*8/2-1,
-       e.x+e.wx*8/2,
-       e.y+e.wy*8/2,8)
+  rect(e.x-e.w/2-1,
+     	 e.y-e.h/2-1,
+       e.x+e.w/2,
+       e.y+e.h/2,8)
  end
  spr(e.s,
-  e.x-e.wx*8/2,
-  e.y-e.wy*8/2,
-  e.wx, e.wy,
-  e.f)
+  e.x-e.w/2,
+  e.y-e.h/2,
+  e.w/8, e.h/8,
+  e.f,
+  e.vf)
 end
 
 -- print all elements
@@ -839,7 +937,8 @@ __mmap = _mat(16,16,_tile)
 
 --multimset
 function mmset(cx,cy,s,w,h,
-               fx,fy)
+               fx,fy,cpal,
+               locked)
  w = w or 1
  h = h or 1
  fx = fx or false
@@ -849,7 +948,9 @@ function mmset(cx,cy,s,w,h,
    local ss=s+j+16*i
    __mmap[cy+i+1][cx+j+1] = {
        s=ss, fx=fx, fy=fy,
-       bf=fget(ss,0)
+       bf=fget(ss,0),
+       pal=cpal,
+       locked=locked or false
      }
   end
  end
@@ -864,11 +965,111 @@ function mmap()
   for j=1,16 do
    local c=__mmap[i][j]
    if c.s!=0 then
+   	for c1=1,16 do
+   	 if c.pal and c.pal[c1] then
+	   	 pal(c1, c.pal[c1])
+	   	end
+    end
     spr(c.s, j*8-8, i*8-8,1,1,
         c.fx,c.fy)
+    pal()
    end
   end
  end
+end
+
+-- animations
+-----------------
+
+function draw_anims()
+	for a in all(anims) do
+	 if a and costatus(a)!='dead' then
+ 	 coresume(a)
+ 	else
+ 	 del(anims,a)
+	 end
+	end
+end
+
+function add_anims(f)
+ add(anims,cocreate(f))
+end
+
+function highlight(x,y)
+ return function()
+ -- minimap coordinates
+ local xo,yo=minimapx,minimapy
+ x=x or xo+rj*4
+ y=y or yo+ri*3
+ for i=1,2 do
+  for t=1,35 do
+   rect(x-i,y-i,
+        x+4+i,y+3+i,
+       8)
+ 	 yield()
+  end
+ end
+ end
+end
+
+function smoke(sx,sy)
+ return function()
+ local w=10
+ local bb={}
+	for i=1,25 do
+		while #bb<=10 do
+		 local x=flr(rnd(w))
+		 local y=flr(rnd(w))
+		 local r=flr(rnd(5))
+			add(bb,{x,y,r})
+		end
+		for b in all(bb) do
+	 	circ(sx+b[1],sy+b[2],b[3],13)
+		end
+		for b in all(bb) do
+	 	circfill(sx+b[1],sy+b[2],b[3]-1,7)
+	 end
+		del(bb,bb[1])
+		yield()
+	end
+	end
+end
+
+function pentacle(sx,sy)
+	return function()
+	local r,c,d=15,7,0
+	while true do
+	 local p={}
+	 for t=0,0.9,1/5 do
+	  local x=sx+sin(d+t)*r
+		 local y=sy+cos(d+t)*r*0.8
+		 pset(x,y,c)
+		 add(p,{x,y})
+		 c+=1
+		end
+		color(10)
+		line(p[1][1],p[1][2],
+		     p[3][1],p[3][2])
+		line(p[5][1],p[5][2])
+		line(p[2][1],p[2][2])
+		line(p[4][1],p[4][2])
+		line(p[1][1],p[1][2])
+	 yield()
+	 d+=0.003
+	end
+ end
+end
+
+function text(t,x,y,c,timer)
+ return function()
+  for i=1,timer do
+   if flr(i/30)%2==0 then
+    rectfill(x,y-1,x+#t*4-2,y+5,c)
+    print(t,x+2,y,1)
+   end
+   yield()
+  end
+	end
 end
 
 -- keys
@@ -928,7 +1129,7 @@ end
 function find_best(free,l)
 	shuffle(free)
  local min_f=free[1]
- local min_occ=100
+ local min_occ=4
  for f in all(free) do
   local fi,fj=f[1],f[2]
   ffree,focc=nbgh(fi,fj,l)
@@ -941,8 +1142,9 @@ function find_best(free,l)
 end
 
 function addroom(l,i,j,nbr,last)
-	l[j][i].seen=true
 	l[j][i].type=1
+	l[j][i].cx=flr(rnd(4))
+	l[j][i].cy=flr(rnd(4))
 	add(last,{i,j})
 	-- break branches
 	if nbr%4==0 then
@@ -955,26 +1157,25 @@ function addroom(l,i,j,nbr,last)
 		while #free==0 do
 		 tries+=1
 			local o=rpick(last)
-			i,j=o[1],o[2]
-			free,occ=nbgh(i,j,l)
+			free,occ=nbgh(o[1],o[2],l)
 			if (tries>5) return
 		end
 	 local f=find_best(free,l)
-		local fi,fj=f[1],f[2]
-		addroom(l,fi,fj,nbr-1,last)
+		addroom(l,f[1],f[2],nbr-1,last)
 	end
 end
 
-function add_sroom(l,last,t,ok)
+function add_sroom(l,last,t,ok,lasti)
+	ok=ok or function(adj) return #adj==1 end
+	lasti=lasti or #last
 	local lastf=last[#last]
-	for r=#last,1,-1 do
+	for r=lasti,1,-1 do
 		local i,j=last[r][1],last[r][2]
 		free,_=nbgh(i,j,l)
 		for f in all(free) do
 			ffree,focc=nbgh(f[1],f[2],l)
 			if ok(focc) then
 		 	l[f[2]][f[1]].type=t
-		 	l[f[2]][f[1]].seen=true
 				return l[f[2]][f[1]]
 			end
 			lastf=f
@@ -989,28 +1190,38 @@ end
 function genlevel(ri,rj,nbr)
  local l=_mat(gridw,gridh,_room)
 	local last={}
+	-- add nbr rooms
 	addroom(l,ri,rj,nbr,last)
-	local rlast=revert(last)
+	l[rj][ri].cx=0
+	l[rj][ri].cy=0
+
 	--item room
-	local r=add_sroom(l,rlast,r_item,
-	 function(adj)
-	  return #adj==1
-	 end)
+	local rlast=revert(last)
+	local r=add_sroom(l,rlast,r_item)
 	r.locked=level_i>1
-	r.elts={rrpick(items),}
+	r.items={rrpick(items)}
+
 	--secret room
 	r=add_sroom(l,rlast,r_secret,
 	 function(adj)
 	  return #adj>=2
 	 end)
-	drop_pickup(r)
+	if r then
+	 if rnd() > 0.05 then
+ 		r.elts={rpick(all_pickups)}
+ 	else
+ 		r.items={rrpick(items)}
+ 	end	
+ end
+
 	--boss room
-	r=add_sroom(l,last,r_boss,
-	 function(adj)
-	  return #adj==1
-	 end)
-	r.emies={rrpick(all_bosses)}
-	return l
+	r=add_sroom(l,last,r_boss)
+	if level_i == 4 then
+	 r.boss=_boss(it_lives)
+	else
+	 r.boss=rrpick(all_bosses)
+	end
+	return l, last
 end
 
 
@@ -1025,7 +1236,7 @@ function floorspr(v)
  return levels[level_i].tile+v-4
 end
 
-function set_floor(r)
+function set_floor(r,cpal)
  local cx=7*r.cx
  local cy=5*r.cy
  -- todo feels messy
@@ -1037,23 +1248,29 @@ function set_floor(r)
    local ss=floorspr(v)
    local jj=j*2-1
    local ii=(i+1)*2
-   if ss==8 then
+   -- if rock
+   if ss==levels[level_i].tile+4 then
     if setrocks then
-     local rock={s=ss, x=jj*8+8,
-   	  y=ii*8+8,
-   	  wx=2,wy=2,
+     local rock={s=ss,
+      x=jj*8+8, y=ii*8+8,
+   	  w=16,h=16,
    	  special=rnd(1)>0.9
    	 }
    	 function rock:draw()
-   	  if (self.special) pal(9,8)
+   	  if (self.special) pal(14,8)
    	 	draw(self)
    	 	if (self.special) pal()
    	 end
    	 add(r.rocks, rock)
    	end
    	ss=4
+   	mmset(jj,ii,
+   	 levels[level_i].tile,
+   	 2,2, false,false, cpal)
+   else
+  		mmset(jj,ii, ss, 2,2,
+  								false,false, cpal)
    end
-   mmset(jj, ii, ss, 2, 2)
    if r.closed then
     if v==s_emy then
      add(r.emies,
@@ -1065,16 +1282,12 @@ function set_floor(r)
    end
   end
  end
- if r.type==r_boss and r.closed then
-  local boss=rpick(all_bosses)
-  add(r.emies,boss)   
+ if r.boss and r.closed then
+  r.boss.x=64
+  r.boss.y=70
+  r.boss.life=r.boss.maxlife
+  r.emies={r.boss}
  end
-end
-
-function clearroom(r)
- r.emies={}
- r.no_hit=true
- set_floor(r)
 end
 
 function seerooms(i,j)
@@ -1102,41 +1315,67 @@ function set_doors(i,j)
   local cr=level[j][i]
   if cr.type!=0 and
      cr.type!=r_secret then
+   local cpal={}
+   if cr.type==r_item or
+   				r.type==r_item then
+   	cpal[5]=10
+   end
+   if cr.type==r_boss or
+       r.type==r_boss then
+   	cpal[5]=8
+   end
    local bbox=doorbb[j-rj][i-ri]
 	  local shift=0
-	  if (#r.emies!=0) shift=1
+	  if (r.emies!=nil and #r.emies!=0) shift=1
 	  if (cr.locked) shift=2
-	  mmset(bbox.cj, bbox.ci,
-         bbox.s+shift*bbox.wx,
-         bbox.wx, bbox.wy,
-         bbox.x>100, bbox.y>100)
+	  if (r.type==r_secret) shift=3
+	  //mmset(bbox.cj, bbox.ci,
+   //      bbox.s+shift*bbox.w/8,
+   //      bbox.w/8, bbox.h/8,
+   //      bbox.x>100, bbox.y>100,
+   //      cpal,cr.locked)
+   bbox.s+=shift*bbox.w/8
+   //bbox.x=bbox.cj*8
+   //bbox.y=bbox.ci*8
+   bbox.f=bbox.x>100
+   bbox.vf=bbox.y>100
+   add(doors,bbox) 
   end
  end
 end
 
 function gen_room(i, j)
  tears={}
- local r=level[j][i]
- r.seen=true
- r.visited=true
- clearroom(r)
-
+ etears={}
+ ri,rj=i,j
+ cr=level[rj][ri]
+ cr.theme=levels[level_i].theme
+ cr.seen=true
+ cr.visited=true
+ --cr.emies=nil
+ cr.no_hit=true
+ 
  seerooms(i,j)
- set_walls(levels[level_i].theme)
- set_doors(i,j)
 
- if r.type==r_boss and
-    r.closed==false then
-  -- add trap
-  mmset(7,6,s_trap,2,2)
+ local cpal={}
+ if cr.type == r_secret then
+  cpal=nighttc
+ elseif cr.type == r_evil then
+  cpal=eviltc
+ elseif cr.type == r_item then
+  cpal=itemtc
+ elseif cr.type == r_boss then
+  cpal=bosstc
  end
+ 
+ set_floor(cr,cpal)
+ set_walls(cr.theme,cpal)
+ set_doors(ri,rj)
 
  -- set current room coord
  lri,lrj=ri,rj
- ri,rj=i,j
- r=level[rj][ri]
  room_timer=0
- particles={}
+ add_anims(highlight())
 end
 
 -- draw walls behind doors
@@ -1155,39 +1394,21 @@ function draw_dwalls(theme)
  spr(theme+1,8*8,14*8,1,1,false,true)
 end
 
-function draw_walls(theme)
- function dwall(i,j, theme)
-  local x=proj3(i,16)
-  local y=proj3(j,12)
-  local ss=theme+x+16*y
-  spr(ss,(i-1)*8,(j+2)*8)
- end
- theme = theme or 196
- for i=1,16 do
-  dwall(i,1,theme)
-  dwall(i,12,theme)
- end
- for j=2,11 do
-  dwall(1,j,theme)
-  dwall(16,j,theme)
- end
-end
-
-function set_walls(theme)
+function set_walls(theme,cpal) 
  --corners
- mmset(0,3,theme)
- mmset(15,3,theme,1,1,true)
- mmset(0,14,theme,1,1,false,true)
- mmset(15,14,theme,1,1,true,true)
+ mmset( 0, 3,theme,1,1,false,false,cpal)
+ mmset(15, 3,theme,1,1,true ,false,cpal)
+ mmset( 0,14,theme,1,1,false,true ,cpal)
+ mmset(15,14,theme,1,1,true ,true ,cpal)
  --sides
  for i=4,13 do
-  mmset(0,i,theme+2)
-  mmset(15,i,theme+2,1,1,true)
+  mmset(0,i,theme+2,1,1,false,false,cpal)
+  mmset(15,i,theme+2,1,1,true,false,cpal)
  end
  --ups and downs
  for j=1,14 do
-  mmset(j,3,theme+1)
-  mmset(j,14,theme+1,1,1,false,true)
+  mmset(j,3,theme+1,1,1,false,false,cpal)
+  mmset(j,14,theme+1,1,1,false,true,cpal)
  end
 end
 
@@ -1214,17 +1435,11 @@ s_bomba=48
 s_bombb=49
 s_key=34
 s_trap=2
-s_tile=6
 s_floor=4
-s_block=34
 s_isaac=64
 s_emy=49
 s_fly=96
 
-l_garden=196
-l_crypt=199
-l_game=202
-l_cemetery=205
 
 function _level(n,s,t,tl)
  return {
@@ -1232,31 +1447,41 @@ function _level(n,s,t,tl)
   theme=t,tile=tl,
  }
 end
-
+//wall theme
+l_garden=196
+l_crypt=199
+l_game=202
+l_cemetery=205
+l_womb=250
+l_crystal=253
+//floor theme
 ft_garden=4
 ft_tile=10
 levels={
- _level("isaac.p8",6,l_garden,4),
- _level("the crypt",8,l_crypt,10),
- _level("the game",10,l_game,10),
- _level("the cemetery",6,l_cemetery,10),
+ _level("isaac mini ˇ",
+        3,l_game,ft_tile),
+ _level("the crypt",
+        5,l_crypt,ft_tile),
+ _level("cristal cave",
+        7,l_crystal,36),
+ _level("the garden",
+        9,l_garden,ft_garden),
 }
 
 screen_time=120
-screen_msg="isaac.p8"
+screen_msg="isaac picobirth"
 
-function heart(x, y)
- return {s=4, x=x, y=y,
-  wx=1, wy=1}
-end
+--function heart(x, y)
+-- return {s=4,x=x,y=y,w=8,h=8}
+--end
 
 function _bomb(x, y)
  return {s=s_bombb, x=x, y=y,
-  wx=1, wy=1, timer=bomb_cooldown}
+  w=8, h=8, timer=bomb_cooldown}
 end
 
 function _pickup(s)
- return {s=s,x=64,y=70,wx=1,wy=1}
+ return {s=s,x=64,y=70,w=8,h=8}
 end
 
 all_pickups={
@@ -1276,8 +1501,8 @@ function _room()
   locked=false,
   emies={},
   elts={},
-  cx=0,
-  cy=0,
+  items={},
+  cx=0,cy=0
  }
 end
 
@@ -1290,84 +1515,112 @@ function _boss(b)
 end
 
 zelda = {
+ n="zelda",
  s=72,
- wx=2,
- wy=2,
+ w=16,h=16,
  a=1,
- anim={72,72,72,72,72,
-       74,74,74,74,74},
+ anim={{72,5},//72,72,72,72,
+       {74,5}},//74,74,74,74},
  maxlife=4,
  f=true,
  damage=0.5,
  speed=0.6
 }
+function zelda.shoot()
+end
+
+
 monstro = {
+ n="monstro",
  s=104,
- wx=2,
- wy=2,
+ w=16,h=16,
  a=1,
- anim={104,104,104,
-       106,106,106,106,106,
-       106,106},
+ anim={{104,3},//104,104,
+       {106,5},//106,106,106,106,
+       {106,2}},
  maxlife=4,
  f=true,
  damage=0.5,
  speed=0.6
 }
+function monstro.shoot()
+end
+
 evil_isaac = {
+ n="evil_isaac",
  s=108,
- wx=2,
- wy=2,
+ w=16,
+ h=16,
  a=1,
- anim={108,108,108,108,108,
-       110,110,110,110,110},
+ anim={{108,5},//108,108,108,108,
+       {110,5}},//110,110,110,110},
  maxlife=4,
  f=true,
  damage=0.5,
  speed=0.6
 }
+function evil_isaac.shoot(vx,vy,d)
+	if rnd(1)<0.01 then
+	for i=1,10 do
+	 add(etears, _tear(
+	  evil_isaac.x,evil_isaac.y,
+	  vx+rnd(0.3), vy+rnd(0.3),3,8))
+	end
+	end
+end
+
+
 it_lives = {
+ n="it_lives",
  s=76,
- wx=2,
- wy=2,
+ w=16,
+ h=16,
  a=1,
- anim={76,76,76,76,76,
-       78,78,78,78,78},
+ anim={{76,5},//76,76,76,76,
+       {78,5}},//78,78,78,78},
  maxlife=4,
  f=true,
  damage=0.5,
  speed=0
 }
+function it_lives.shoot(vx,vy,d)
+	if rnd(1)<0.1 then
+	 add(etears, _tear(
+	  it_lives.x,it_lives.y,
+	  vx, vy,3,8))
+	end
+end
 
 all_bosses={
  _boss(zelda),
  _boss(monstro),
  _boss(evil_isaac),
- _boss(it_lives),
 }
 
 -->8
 --enemies
 
 function _fly(x,y)
+ --todo use _enemy
  local e = {
   life=0.1,
   s=s_fly,
-  x=x,
-  y=y,
-  wx=1,
-  wy=1,
+  x=x, y=y,
+  w=8, h=8,
   a=1,
   -- sprite sequence
-  anim = {96,97},
+  anim = {{96,1},{97,1}},
   f=true,
   damage=0.5,
-  speed=0.3
+  speed=0.3,
+  tsize=1
  }
  function e:draw()
    pal(12,8)
    draw(self)
    pal()
+ end
+ function e:shoot()
  end
  return e 
 end
@@ -1377,21 +1630,29 @@ function _enemy(x,y)
  local e = {
   life=1,
   s=64,
-  x=x,
-  y=y,
-  wx=2,
-  wy=2,
+  x=x,y=y,
+  w=16,h=16,
   a=1,
   -- sprite sequence
   anim = p.anim,
   f=true,
   damage=0.5,
-  speed=0.3
+  speed=0.3,
+  tsize=2,
  }
  function e:draw()
    pal(12,8)
    draw(self)
    pal()
+ end
+ function e.shoot(vx,vy,d)
+  if d > 10 then
+   if rnd(1) < 0.01 then
+   	add(etears, 
+   	 _tear(e.x,e.y,vx,vy,
+   	       e.tsize,8))
+   end
+  end
  end
  return e 
 end
@@ -1404,13 +1665,16 @@ function drop_pickup(r,x,y,pickups)
 	e.x,e.y=x,y
  drop(e,r)
  add(r.elts,e)
+ add_anims(smoke(e.x-4,e.y-4))
 end
 
 function cleared(r)
  if r.type == r_boss then
-  -- add trap
-  mmset(7,6,s_trap,2,2)
-  add(r.elts, rrpick(items))
+  add(r.rocks,{s=s_trap,
+               x=64,y=56,
+               w=16,h=16})
+  add(r.items, rrpick(items))
+  room_timer=0
  else
   drop_pickup(r)
  end
@@ -1418,16 +1682,20 @@ function cleared(r)
 end
 
 function move_enemy(e)
- local r=level[rj][ri]
  -- motion
  local d=dist(p,e)
- local vx=(p.x-e.x)/d*e.speed
- local vy=(p.y-e.y)/d*e.speed
+ local vx=(p.x-e.x)/d
+ local vy=(p.y-e.y)/d
+	
+	e.shoot(vx,vy,d)
+	
+	vx*=e.speed
+	vy*=e.speed
   
  -- check collision with others
  local ne={x=e.x+vx,y=e.y+vy}
  local move=true
- for e2 in all(r.emies) do
+ for e2 in all(cr.emies) do
   if e != e2 then
    dee = dist(ne,e2)
    if dee < 5 then
@@ -1440,7 +1708,7 @@ function move_enemy(e)
  end
  -- check collision with elts
  ne={x=e.x+vx,y=e.y+vy}
- for el in all(r.elts) do
+ for el in all(cr.elts) do
   dee = dist(ne,el)
   if dee < 5 then
    move=false
@@ -1458,14 +1726,7 @@ function move_enemy(e)
    e.y+=vy
   else
    -- hit isaac and bounce
-   if not (p.holy_mantle and
-           r.no_hit) and
-      p.invincible==0 then
-    sfx(1)
-    p:hurt(e.damage)
-    p.invincible=20
-   end
-   r.no_hit=false
+   p:hurt(e.damage)
    p.vx=vx*5
    p.vy=vy*5
    e.x-=vx*15
@@ -1483,16 +1744,15 @@ function move_enemy(e)
 end
 
 function upd_emies()
- local r=level[rj][ri]
- r.closed=#r.emies!=0
+ cr.closed=(cr.emies!=nil and #cr.emies!=0)
  
- for e in all(r.emies) do
+ for e in all(cr.emies) do
   -- death
   if e.life <= 0 then
    sfx(2)
-   del(r.emies, e)
-   if #r.emies==0 then
-    cleared(r)
+   del(cr.emies, e)
+   if #cr.emies==0 then
+    cleared(cr)
    end
   end
 
@@ -1509,41 +1769,80 @@ end
 -->8
 -- items
 
-function _item(n,s,d,x,y)
- x = x or 64
- y = y or 72
- return {n=n, s=s, d=d,
-         x=x, y=y,
-         wx=2, wy=2}
+function _item(n,px,py,w,h,def)
+ local i={n=n,s=s,d=def,px=px,py=py,
+          x=64,y=72,w=w,h=h}
+ i.cor=cocreate(pentacle(64,75))
+ function i:draw()
+  if self.cor and
+    costatus(self.cor)!='dead'
+   then
+		  coresume(self.cor)
+		end
+ 	sspr(px,py,w,h,64-w/2,72-h/2)
+ end
+ return i
 end
 
---item
-items={
- _item('mushroom',128,'all stats up!'),
- _item('holy mantle',130,'holy shield'),
- _item('proptosis',132,'mega tears'),
- _item('brimstone',134,'blood laser'),
- _item('godhead',136,'god tears'),
- _item('20/20',138,'double shot'),
- _item('the poop',140,'plop!'),
- _item('the mind',142,'i know all'),
- _item('the halo',160,'all stats up'),
- _item('red key',162,'the upside-down'),
- _item('the onion',164,'more tears'),
- _item('the spoon',166,'run!'),
- _item('dead cat',168,'9 lives'),
- _item('the whore',170,'curse up'),
- _item('chocobar',172,'health up'),
- _item('ipecac',174,'explosive shot')
-}
+s_items="mushroom,0,64,10,11,all stats up!\
+;holy mantle,11,64,11,13,holy shield\
+;proptosis,23,64,13,12,mega tears\
+;brimstone,24,77,12,12,blood laser\
+;20/20,114,77,12,18,double shot!\
+;the poop,102,64,9,10,plop\
+;the mind,88,64,13,13,i know all\
+;the halo,1,77,14,7,all stats up\
+;red key,1,85,14,9,the upside-down\
+;the onion,37,64,15,14,more tears\
+;godhead,37,64,10,15,god tear\
+;the spoon,16,78,7,14,run!\
+;dead cat,111,64,16,12,11 lives\
+;the whore,63,64,13,12,curse up\
+;chocobar,77,65,9,12,health up\
+;ipecac,53,75,9,12,explosive tears\
+;the flee,37,79,14,6,friends!\
+;pyromaniac,63,77,14,13,love bombs\
+;fixme,24,90,14,5,i've seen it all\
+"
+
+function build_items()
+	items={}	
+	for s in all(ssplit(s_items,';')) do
+		fields = ssplit(s,',')
+		add(items,_item(
+		 fields[1],
+			fields[2],
+			fields[3],
+			fields[4],
+			fields[5],
+			fields[6]
+		))
+	end
+end
+
+function h_trate(v)
+ p.tear_rate += (v or 0)
+ add_anims(highlight(statsx,14))
+end
+
+function h_speed()
+ p.speed += (v or 0)
+ add_anims(highlight(statsx+8,14))
+end
+
+function h_damage(v)
+	p.tsize += (v or 0)
+ add_anims(highlight(statsx+16,14))
+end
 
 function pickitem(e)
  if e.n=="mushroom" then
-  p.maxlife +=1
+  p.maxlife += 1
   p.life  = p.maxlife
   p.tsize *= 1.5
-  p.speed += 0.2
-  p.tear_rate += 0.2
+  h_damage()
+  h_speed(0.2)
+  h_trate(0.2)
   return true
  end
  if e.n=="20/20" then
@@ -1552,7 +1851,7 @@ function pickitem(e)
  end
  if e.n=="proptosis" then
   p.proptosis=true
-  p.tsize *= 2
+  h_damage(p.tsize)
   return true
  end
  if e.n=="holy mantle" then
@@ -1565,7 +1864,7 @@ function pickitem(e)
   return true
  end
  if e.n=="the onion" then
-  p.tear_rate+=2
+  h_trate(2)
   return true
  end
  if e.n=="the spoon" then
@@ -1586,9 +1885,9 @@ function pickitem(e)
  end
  if e.n=="the halo" then
   p.maxlife += 1
-  p.tsize += 1
-  p.tear_rate += 0.5
-  p.speed += 0.2
+  h_damage(1)
+  h_trate(0.5)
+  h_speed(0.2)
   return true
  end
  if e.n=="the whore" then
@@ -1605,24 +1904,23 @@ function pickitem(e)
   p.ipecac=true
   p.tcolor=upd_tear_color()
   p.tear_rate=0.5
-  p.tsize+=5
+  h_trate()
+  h_damage(3)
   return true
  end
  if e.n=="red key" then
-  last={}
-  for j=1,#level do
-   for i=1,#level[j] do
-    local r=level[j][i]
-    if r.type!=0 then
-     add(last, {i,j})
-    end
+  for i=1,3 do
+   local k=flr(rnd(#rooms))
+   local ok = function(occ)
+   	return true
    end
+   add_sroom(level,rooms,r_evil,ok)
   end
-  addroom(level,last,r_evil)
-  addroom(level,last,r_evil)
-  addroom(level,last,r_evil)
   set_doors(ri,rj)
   return true
+ end
+ if e.n=="pyromaniac" then
+ 	p.pyromaniac=true
  end
  if e.n=="the poop" then
   -- do nothing
@@ -1641,52 +1939,47 @@ function upd_tear_color()
  return c
 end
 
-function draw_tears()
- local c=p.tcolor
- for t in all(tears) do
-  circfill(t.x,t.y,t.size,c)
-  circ(t.x,t.y,t.size,5)
- end
- for p in all(particles) do
-  circfill(p.x,p.y,p.r,p.c)
-  circ(p.x,p.y,p.r,p.cc)
- end
-end
-
-function update_particles()
- for p in all(particles) do
-  p.x += p.spd.x
-  p.y += p.spd.y
-  p.t -= 1
-  if (p.t < 0) del(particles,p)
- end
-end
-
-
-function explode(x,y,r,c)
+function explosion(x,y,r,c)
  c = c or p.tcolor
  r = r or 1
+ return function()
  local nbdir=4
- for dir=0,nbdir-1 do
-  local angle=((0.5+dir)/nbdir)
-  add(particles,{
-   x=x,
-   y=y,
-   t=10,
-   r=r,
-   c=c,
-   cc=5,
-   spd={
-    x=sin(angle),
-    y=cos(angle)
-   }
-  })
+	for t=1,10 do
+  for dir=0,nbdir-1 do
+   local angle=((0.5+dir)/nbdir)
+   local x=x+t*sin(angle)
+   local y=y+t*cos(angle)
+   circfill(x,y,r,c)
+   circ(x,y,r,5)
+  end
+  yield()
  end
+ end
+end
+
+-- update enemy tears
+function upd_etears()
+	for t in all(etears) do
+		t.x += t.vx
+		t.y += t.vy
+		killit=false
+		if t.x < 4 or t.x > 124
+   or t.y < 28 or t.y > 116 then
+  	killit=true
+  end
+		if hit(t,p) then
+			p:hurt(0.5)
+			killit=true
+		end
+		if killit then
+			del(etears,t)
+   add_anims(explosion(t.x,t.y))
+		end
+	end
 end
 
 -- update shooting tears
 function upd_tears()
- local r=level[rj][ri]
  for t in all(tears) do
   local killit=false
   t.x += t.vx
@@ -1695,19 +1988,16 @@ function upd_tears()
      t.size > 1 then
    t.size-=0.1
   end
-  if solida(t.x,t.y+4,
-   t.size/2,
-   t.size/2) then
+  if t.x<4 or t.x>124
+   or t.y<28 or t.y>116 then
    killit=true
   end
-  if t.x < 0 or t.x > 128
-   or t.y < 24 or t.y > 120 then
-   killit=true
-  end
+  t.y+=4
+  if (hit_rocks(t)) killit=true
+  t.y-=4
   local closest=nil
   local min_d=500
-  local hitt=false
-  for e in all(r.emies) do
+  for e in all(cr.emies) do
    local d=dist(t,e)
    -- if e >0 ?
    if d<min_d then
@@ -1715,56 +2005,63 @@ function upd_tears()
     closest=e
    end
    if hit(e,t) then
-    sfx(1) 
+    sfx(1)
     if room_timer > 30 then
-     e.life-=t.size/5
+     e.life-=p.damage()
+     e.x += t.vx*6*e.speed
+     e.y += t.vy*6*e.speed
     end
-    e.x += t.vx*2
-    e.y += t.vy*2
     killit=true
-    hitt=true
     break
    end
   end
   if p.god and 
-     hitt==false and
+     killit==false and
      closest then
    t.x+=(closest.x-t.x)/min_d   
    t.y+=(closest.y-t.y)/min_d
   end
   if killit then
    del(tears,t)
-   explode(t.x,t.y)
    if p.ipecac then
    	bomb_it(t)
+   else
+    add_anims(explosion(t.x,t.y))
    end
   end
  end
 end
 
+function _tear(x,y,vx,vy,size,c)
+ vx=vx or lx
+ vy=vy or ly
+ spd=spd or 1.3
+ local t={
+  x=x or p.x, y=y or p.y-4,
+  vx=vx*spd, vy=vy*spd,
+  w=p.tsize, h=p.tsize,
+  size=size or p.tsize,
+  c=c or p.tcolor
+ }
+ function t.draw()
+  circfill(t.x,t.y,t.size,t.c)
+  circ(t.x,t.y,t.size,5)
+ end
+ return t
+end
+
 function shoot_tears()
  if (p.cooldown<=0 and
      keys:held(4)) then
-  local w=flr(p.tsize/8)
   --todo lx,ly not normalized
   if p.double_shot then
    local px,py=rot90(lx,ly)
-   add(tears, {
-    x=p.x-px*3, y=p.y-4-py*3,
-    vx=lx*1.3, vy=ly*1.3,
-    wx=w,wy=w,
-    size=p.tsize})
-   add(tears, {
-    x=p.x+px*3, y=p.y-4+py*3,
-    vx=lx*1.3, vy=ly*1.3,
-    wx=w,wy=w,
-    size=p.tsize})
+   add(tears,_tear(p.x-px*3,
+                   p.y-py*3))
+   add(tears,_tear(p.x+px*3,
+                   p.y+py*3))
   else
-   add(tears, {
-    x=p.x, y=p.y-4,
-    vx=lx*1.3, vy=ly*1.3,
-    wx=w,wy=w,
-    size=p.tsize})
+   add(tears,_tear())
   end
   p.cooldown=60/p.tear_rate
  end
@@ -1780,21 +2077,21 @@ doorbb[0]={}
 doorbb[1]={}
 --left
 doorbb[-1][0]={x=0.5*8,y=9*8,
-               wx=1,wy=2,
+               w=8,h=16,
                cj=0,ci=8,
                s=228}
 --right
 doorbb[1][0]={x=15.5*8,y=9*8,
-              wx=1,wy=2,
+              w=8,h=16,
               cj=15,ci=8,
               s=228}
 --top
 doorbb[0][-1]={x=8*8,y=3.5*8,
-               wx=2,wy=1,
+               w=16,h=8,
                cj=7,ci=3,s=212}
 --bottom
 doorbb[0][1]={x=8*8,y=14.5*8,
-              wx=2,wy=1,
+              w=16,h=8,
               cj=7,ci=14,
               s=212}
 
@@ -1809,9 +2106,9 @@ function bomb_walls(b)
     sfx(1)
     mmset(flr(bbox.cj),
           flr(bbox.ci),
-          bbox.s+3*bbox.wx,
-          bbox.wx,
-          bbox.wy,
+          bbox.s+3*bbox.w/8,
+          bbox.w/8,
+          bbox.h/8,
           bbox.x>100,
           bbox.y>100)
    end
@@ -1820,12 +2117,11 @@ function bomb_walls(b)
 end
 
 function bomb_rocks(b)
- local r=level[rj][ri]
- for ro in all(r.rocks) do
+ for ro in all(cr.rocks) do
   if hit(b,ro,bomb_zone) then
-  	del(r.rocks,ro)
+  	del(cr.rocks,ro)
   	if ro.special then
-    drop_pickup(r,
+    drop_pickup(cr,
      ro.x,ro.y,{
      _pickup(s_bomb),
      _pickup(s_bheart),
@@ -1836,31 +2132,29 @@ function bomb_rocks(b)
 end
 
 function bomb_people(b)
- local r=level[rj][ri]
  -- bomb enemies
- for e in all(r.emies) do
+ for e in all(cr.emies) do
   if hit(b,e,bomb_zone) then
    e.life -= 5
    end
  end
  -- bomb self
- if hit(b,p) then
+ if hit(b,p,bomb_zone) then
   p:hurt(1)
-  sfx(2)
  end
 end
 
 function bomb_it(b)
- local r=level[rj][ri]
+ add_anims(explosion(b.x,b.y,2,8))
  bomb_walls(b)
  bomb_people(b)
 	bomb_rocks(b)	
 	sfx(3)
 end
 
-function upd_bomb(r)
+function upd_bomb()
  drop_bomb()
- for b in all(r.elts) do
+ for b in all(cr.elts) do
   -- update sprites
   if b.s==s_bomba or
      b.s==s_bombb then
@@ -1874,10 +2168,9 @@ function upd_bomb(r)
    end
    -- explosion
    if b.timer<0 then
-    explode(b.x,b.y,2,8)
     bomb_it(b)
     --todo fix issue 2 sfx
-    del(r.elts,b)
+    del(cr.elts,b)
    end
   end
  end
@@ -1888,45 +2181,44 @@ function drop_bomb()
      p.bombs > 0  and
      p.bcooldown<=0) then
   p.bombs -= 1
-  local r=level[rj][ri]
-  add(r.elts, _bomb(p.x,p.y+2))
+  add(cr.elts, _bomb(p.x,p.y+2))
   p.bcooldown=bomb_cooldown
  end
 end
 
 __gfx__
-000000000080000066666666666666663333333333333333333e3333333333330000077777700000766666666666666776666666666666676777777777777776
-00000000008077c06000ddddddddddd6333333333333333333ebe333333333330007777ee777700067777777777777706cccccccccccccc07677777777777760
-00700700066677776550ddddddddddd63333333333333333333e3333333333330077777777ee770067777777777777706cccccccccccccc077dddddddddddd00
-000000000060dddd6550ddddddddddd6333333333333333333333333333333330777e7ee7777777067777777777777706cccccccccccccc077dddddddddddd00
-00000000000000006550000dddddddd633333333333333333333333333e33333077777eee7ee777067777777777777706cccccccccccccc077dddddddddddd00
-007007000c0c00006550550dddddddd63333333333333333333333333ebe3333077ee77777777e7067777777777777706cccccccccccccc077dddddddddddd00
-00000000c0c000006550550dddddddd633333333333333333333333333e33333077ee7ee7ee7e77067777777777777706cccccccccccccc077dddddddddddd00
-00000000000000006550550000ddddd63333333333383333333333333333333307e777777ee7e77067777777777777706cccccccccccccc077dddddddddddd00
-00000000000000006550550550ddddd6333333333389833333333333333333330777ee7e7777777067777777777777706cccccccccccccc077dddddddddddd00
-00550550005505506550550550ddddd63333333333b8333333333333333333330077ee7e7ee7e70067777777777777706cccccccccccccc077dddddddddddd00
-05885885050058856550550550000dd63333333333b33333333333333333333300777e777ee7770067777777777777706cccccccccccccc077dddddddddddd00
-05888785050087856550550550550dd633333333333b333333e3333333333333000777777777700067777777777777706cccccccccccccc077dddddddddddd00
-05888850050088506550550550550dd633333333333333333ebe333333333e33000007494470000067777777777777706cccccccccccccc077dddddddddddd00
-00588500005085006550550550550006333333333333333333e333333333ebe3000044494444000067777777777777706cccccccccccccc077dddddddddddd00
-0005500000055000655055055055055633333333333333333333333333333e33000004444440000067777777777777706cccccccccccccc07600000000000060
-00000000000000006666666666666666333333333333333333333333333333330000000000000000700000000000000570000000000000076000000000000006
-00000000000000000000000000000000000000000000000000000000000000000000000000000000eeeeee77777ee777eeeeeeeeeeeeeeeed77777777777777d
-00550550000010000000000007707700000000000000000000000000000000000000000000000000eeeeee7777ee7777eeeeeeeeeeeeeeee7d777777777777d0
-05cc5cc5000010000000000078878870000000000000000000000000000000000000000000000000eeeeeee7eee77777eee777eeee777eee77dddddddddddd00
-05ccc7c500555500aaa0000078788870000000000000000000000000000000000000000000000000eeeeeeeee7777777ee77777ee77777ee77dddddddddddd00
-05cccc5005557750a9aaaaaa788888700000000000000000000000000000000000000000000000007eeeeeeeee777777e77777777777777e77dd777dd777dd00
-005cc50005555750aaa99a9a0788870000000000000000000000000000000000000000000000000077eeeeeeeeee7ee7e77777777777777e77d7777777777d00
-00055000055555509990090900787000000000000000000000000000000000000000000000000000777eeeeeeeeeeeeee77777777777777e77d7777777777d00
-00000000005555000000000000070000000000000000000000000000000000000000000000000000777eeeeeeeeeeddde67777777777776e77d7777777777d00
-00000000000000000000000000000000000000000000000000000000000000000000000000000000e777eeeeeeedddddee677777777776ee77d6777777776d00
-00008000000080000770770007707700000000000000000000000000000000000000000000000000eeeeeeeeeeddddddeee6777777776eee77dd67777776dd00
-00001000000010007887777077777770000000000000000000000000000000000000000000000000ddddeeeeeddddddeeeee67777776eeee77ddd677776ddd00
-00555500008888007878777077777770000000000000000000000000000000000000000000000000ddeeedddeeeeeeeeeeeee677776eeeee77dddd6776dddd00
-05557750088877807888777077777770000000000000000000000000000000000000000000000000deeeeeddde77777eeeeeee6776eeeeee77ddddd66ddddd00
-05555750088887800788770007777700000000000000000000000000000000000000000000000000ee7eeeeeeee7777eeeeeeee66eeeeeee77dddddddddddd00
-05555550088888800078700000777000000000000000000000000000000000000000000000000000777eeeeeeee7777eeeeeeeeeeeeeeeee7d000000000000d0
-005555000088880000070000000700000000000000000000000000000000000000000000000000007777eeeeeeee77eeeeeeeeeeeeeeeeeed00000000000000d
+000000000080000066666666666666663333333333333333333e3333333333330000077777700000766666666666666776666666666666670006666666666000
+00000000008077c06555ddddddddddd6333333333333333333ebe333333333330007777ee777700067777777777777706cccccccccccccc0006eeeeeeeeee600
+00700700066677776995ddddddddddd63333333333333333333e3333333333330077777777ee770067777777777777706cccccccccccccc0066eeeeeeeeee660
+000000000060dddd6995ddddddddddd6333333333333333333333333333333330777e7ee7777777067777777777777706cccccccccccccc00d6eeeeeeeeee660
+00005050000000006995555dddddddd633333333333333333333333333e33333077777eee7ee777067777777777777706cccccccccccccc00d6eeeeeeeeee660
+0070ddd00c0c05056995995dddddddd63333333333333333333333333ebe3333077ee77777777e7067777777777777706cccccccccccccc00d6eeeeeeeeee660
+00000d00c0c00ddd6995995dddddddd633333333333333333333333333e33333077ee7ee7ee7e77067777777777777706cccccccccccccc00d6eeeeeeeeee660
+00000000000000d06995995555ddddd63333333333383333333333333333333307e777777ee7e77067777777777777706cccccccccccccc00d6eeeeeeeeee660
+00000000000000006995995995ddddd6333333333389833333333333333333330777ee7e7777777067777777777777706cccccccccccccc00d6eeeeeeeeee660
+00550550005505506995995995ddddd63333333333b8333333333333333333330077ee7e7ee7e70067777777777777706cccccccccccccc00d6eeeeeeeeee660
+05885885050058856995995995555dd63333333333b33333333333333333333300777e777ee7770067777777777777706cccccccccccccc00d66666666666660
+05888785050087856995995995995dd633333333333b333333e3333333333333000777777777700067777777777777706cccccccccccccc00d6dddddddddd660
+05888850050088506995995995995dd633333333333333333ebe333333333e33000007494470000067777777777777706cccccccccccccc006dddddddddddd60
+00588500005085006995995995995556333333333333333333e333333333ebe3000044494444000067777777777777706cccccccccccccc006dddddddddddd60
+0005500000055000699599599599599633333333333333333333333333333e33000004444440000067777777777777706cccccccccccccc00dddddddddddddd0
+00000000000000006666666666666666333333333333333333333333333333330000000000000000700000000000000570000000000000070000000000000000
+00000000000000000000000000000000dddddddddddddddddddddddddddddddd0007700000000000775555555555557775555755555555570000000000000000
+00550550000010000000000007707700dddeeeeddddddddddddddddddddddddd007d770770077700777777777777777757777577775777750005555555550000
+05cc5cc5000010000000000078878870dddddddeeddddddddddddddddddddddd007d7777d7777700777777777777777757777577775777750055eee5eee55500
+05ccc7c500555500aaa0000078788870dddddddddddddddddddddddedddddddd077d7e7d77dd7770777777777777777757777577775777750555eeeeeeee5500
+05cccc5005557750a9aaaaaa78888870ddddddddddddddddddddeeddeeeeeddd07dd7e7777d77e705777777777777777557775777757777555ee5ee5e5555550
+005cc50005555750aaa99a9a07888700eeeedddeeeeedddddddeddddddeddddd07dd7ee77dd7ee70577777777777777775555755557755575eee5ee55555ee55
+00055000055555509990090900787000dddddddedddddedddddeddddddeddddd77dd7ee7d777ee707777777777777777577775feef577775555555555eeeee55
+00000000005555000000000000070000dddddddedddddedddddeeedeeedeeedd7dd77ee7dd7eee705777777777777777577775e8ee57777555555e55eeeeee55
+00000000000000000000000000000000dddeeeeeeeededeedddddddddddddddd7dd7ee7dd77ee7007777777777777777577775ee8e57777505eeeee55eeeee55
+00008000000080000770770007707700ddddedddddddddddddddddddddeddddd7dd7e77dd7eee7707777777777777777555775feef577775555eeeee55555550
+00001000000010007887777077777770ddddedddddeddddddeeeeeeeddeedddd7d77e7ddd7ee7770777777777777777775555755557755575e55eeee5555e550
+00555500008888007878777077777770ddddeeeedeeedeeeddddddeddddddddd777e77dd77ee7777577777777777777777777577775577755ee55ee555eeee55
+05557750088877807888777077777770ddddddddddddddddddddddddddeddddd077e77dd7ee77ee7577777777777777757777577775777755eeee5555eeeee55
+05555750088887800788770007777700ddddddddddddddddddddddddeeeeeeed00777ddd7ee77ee757777777777777775777757777577775555eeeee5eeeee50
+05555550088888800078700000777000dddddddddddddddddddddddddddddddd000777777e7777e7777777777777777757777577775777750055eeee555ee550
+00555500008888000007000000070000dddddddddddddddddddddddddddddddd0000000007777777777777777777777775557755557755570005555555555500
 00000555555000000000055555500000000005555550000000000555555000000009809999098000000980999909870700058505250020000005850525020000
 00005ffffff5000000005ffffff5000000005ffffff5000000005ffffff500000009899889998707000989988999870700058505250020000000585052502000
 0005ffffffff50000005ffffffff50000005ffffffff50000005ffffffff50000000997887990707000099788799077700055555555020000000555555555200
@@ -1943,86 +2235,86 @@ __gfx__
 00000550055000000000005555000000000000555500000000000550555000007777778999899870777777899998897000005850050000000000005005250000
 00000000000000000000000000000000000000000000000000000000000000008888888000999970888888800089987000000500000000000000000000500000
 00000000000000000000000000000000000000000000000000000000000000000009999000000070000000000099990000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000005555555000000000555555000000000055555500000
-07700770000000000000000000000000000000000000000000000000000000000000000000000000000555ff6555500000005777777500000000577777750000
-775775777700007700000000000000000000000000000000000000000000000000000000000000000055fffff566550000057777777750000005777777775000
-75577557757007570000000000000000000000000000000000000000000000000000000550000000005666fff666f55000577777777775000057777777777500
-077887707778877700000000000000000000000000000000000000000000000000000555555500000556766ff676ff5500575777775775000057577777577500
-0008800000088000000000000000000000000000000000000000000000000000000055fff555500055666665ff666ff500575577775575000057557777557500
-00000000000000000000000000000000000000000000000000000000000000000005765ff57655005fffff555ff6666500578855558875000057885555887500
-00000000000000000000000000000000000000000000000000000000000000000056665ff666f5505ff55f5855556ff500058755557850000005875555785000
-0000000000000000000000000000000000000000000000000000000000000000055ff555f6ffff555f555558758555f505555777777500000000577777755550
-00000000000000000000000000000000000000000000000000000000000000005566f585ff666ff55f588788888855f505755555555555500555555555555750
-00000000000000000000000000000000000000000000000000000000000000005ff55585555556650565558787555f5505557888878757500575788887875550
-00000000000000000000000000000000000000000000000000000000000000005f557885887855f505ff5555555ff55000057787777755500555778777775000
-00000000000000000000000000000000000000000000000000000000000000005ff55788788855f50055ffffffff550000d5777777775d0000d5777777775d00
-0000000000000000000000000000000000000000000000000000000000000000556f555555555ff500055555555550000ddd57755775ddd000dd57755775dd00
-0000000000000000000000000000000000000000000000000000000000000000055ffffffffff5550000000000000000000d555dd775d000000d577dd555d000
-0000000000000000000000000000000000000000000000000000000000000000005555555555550000000000000000000000ddddd55500000000555ddddd0000
+00000000000000000070070007700070008880000008880000888000000888000000000000000000000005555555000000000555555000000000055555500000
+07700770000000000700007070000007088888555588888008888855558888800000000000000000000555ff6555500000005777777500000000577777750000
+775775777700007707000070700000070800888888880080080088888888008000000000000000000055fffff566550000057777777750000005777777775000
+75577557757007570077770007777770000588888888500000058888888850000000000550000000005666fff666f55000577777777775000057777777777500
+077887707778877707800870078008700058888888888500005888888888850000000555555500000556766ff676ff5500575777775775000057577777577500
+0008800000088000077007700770077000585788885785000058588888588500000055fff555500055666665ff666ff500575577775575000057557777557500
+0000000000000000ee7777eeee7777ee005855888855850000585588885585000005765ff57655005fffff555ff6666500578855558875000057885555887500
+0000000000000000e000000e00000000005899555599850000589955559985000056665ff666f5505ff55f5855556ff500058755557850000005875555785000
+0000000000000000700000077000000700059c5555c9500000059c5555c95000055ff555f6ffff555f555558758555f505555777777500000000577777755550
+0500005005000050070000707700007700005cccccc5000000005cccccc500005566f585ff666ff55f588788888855f505755555555555500555555555555750
+005005000050050007000070070000700005c555555c500000005555555000005ff55585555556650565558787555f5505557888878757500575788887875550
+50088000000880050077770000777700000555cccc5550000005c5ccc5c500005f557885887855f505ff5555555ff55000057787777755500555778777775000
+05588550055885500780087007800870000005cccc500000000055cccc5000005ff55788788855f50055ffffffff550000d5777777775d0000d5777777775d00
+00055005500550000770077007700770000005c55c500000000005c55c500000556f555555555ff500055555555550000ddd57755775ddd000dd57755775dd00
+0050050000500500ee7777eeee7777ee00000550055000000000055055500000055ffffffffff5550000000000000000000d555dd775d000000d577dd555d000
+0500005005000050e00000000000000000000000000000000000000000000000000000000000050000000000000000000000d000000000000000555ddddd0000
+00055550000000055500000000000000800000555500000000000000000000005555500000000000000000000000005000000050500000000000000000000000
+005877750000005d7d500000000000000800055bb550000000555555555555058585855555000055555550000000057500000005000505000000005555000500
+058878885000055cdc55000000555550000005bbbb50555505aaaa5775cccc05588855588550005444445000000057a750000000000050000000055665500550
+058878875000555cdc555008055777550000055bbb555bb5005aa575575cc50588588558885000545454500000057aaa75000000050000000000566666550550
+578777777505dcccdcccd508057765750000005bbbb5bb55005a57575575c50055555558885500544444500000057aaa75000000545500000005566666655550
+577788778505cddddddd75000577557550000055bbb5bb500005775555775000000005588885055451145500000577a775000000554450000005666667665500
+587888788505dcccdcccd50055777775555000557bb57550000057755775000000005588888505111c1115000000565650000005445545000555566655766500
+558788785500555cdc5550055587778558550557777777550000555555550000555558888885055ccccc1500005557a75550005455544450056555665d556500
+055555555000055cdc5500058558885588500575577755750000058888500000588888888885005c666c5500057aa575aa750055444445500056655655d56650
+005d6fd50000005cdc5000055555555455000575577755750000005885000000558888888855005ccccc5000057aa757aa750005555555000556665665557750
+000555500000005cdc500000058888555800057cc777cc750000000550000000055888888550005c666c500057aa75057aa75000000000005656675575005500
+000000000000005dcd5000000555555500000557c757c7550000000000000000005555555500005ccccc500057a7500057a75000000000000555550050000000
+00000000000000055500000000000000000000555777550000000055555550000000000000000055555550005555000005555000000000000000000000000000
+00055555555550000000000000008888000000005555500000000577777765000000500500000000000000000000000000000000000000000000055005500000
+00555aaaaaa555000055500000088558800000000000000000000577777765000055005950000000000000000000000000000000000000000000500000550000
+055aaa9999aaa5500544450000085555800000005050050500000055555550000599559995000000000000000000000000000000000000000005000000005000
+059aa555555aa95054494450088885588880000505600650500005222222250059977a7795000000000000000000000000000000000000000005555555555000
+0559aaaaaaaa95505499945088555555558805055665566550500522666665005975575599500000000000000000000000000000000000000055675005675500
+00555999999555005499945008888558888005050556855050500522677775005958858857955000000000000000000000000000000000000056777556777500
+000555555555500054494450085555555580000500588500500005226eeee5005a5878885a995000000000000000000000000000000000000057777557777500
+0000000000000000054445008558555585580000500550050000052266666500595888885a955000000000000000000000000000000000000005775005775000
+00555500000000000054500085888558885800000000000000000522222225000575888577950000000000000000000000000000000000000000550000550000
+055885500000000000545000855855558558000000000000000000555555500559a75857a9500000000000000000000000000000000000000000000000000000
+0588885555555000005450000855588555800000000000000000000000000000559775a999500000000000000000000000000000000000000000000000000000
+05855885855555000054500000888008880000000000000000000000000000000059979955500000000000000000000000000000000000000000000000000000
+05585588888888000054500000000000000000000000000000000000000000000055555500000000000000000000000000000000000000000000000000000000
+05855885858885000054500000555500055550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+05888855558585000055500005550055550055000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0558855005555500000000005e575575e50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00555500000000000000000057ee55ee750000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000005550055500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000005550000000000000000008000000000000000000000000000000000000000000000000000000000000000000000000000500000000
-0000005555000000000005d7d5000000000000000000800000000088880000000000000000000000000000000000000000050500000000000000005750000000
-0000058777500000000055cdc5500000000005555500000000000885588000000055555555555500000000000000000000005000505000000000057a75000000
-0000588788850000000555cdc55500000080557775500000000008555580000005aaaa5775cccc5000000550055000000000000005000000000057aaa7500000
-0000588788750000005dcccdcccd500000805776575000000008888558888000005aa575575cc50000005000005500000000005000000000000057aaa7500000
-0005787777775000005cddddddd7500000005775575500000088555555558800005a57575575c500000500000000500000000545500000000000577a77500000
-0005777887785000005dcccdcccd5000000557777755550000088885588880000005775555775000000555555555500000000554450000000000056565000000
-0005878887885000000555cdc5550000005558777855855000085555555580000000577557750000005567500567550000005445545000000005557a75550000
-0005587887855000000055cdc5500000005855888558850000855855558558000000555555550000005677755677750000054555444500000057aa575aa75000
-0000555555550000000005cdc5000000005555555545500000858885588858000000058888500000005777755777750000055444445500000057aa757aa75000
-000005d6fd500000000005cdc500000000005888855580000085585555855800000000588500000000057750057750000000555555500000057aa75057aa7500
-0000005555000000000005dcd500000000005555555000000008555885558000000000055000000000005500005500000000000000000000057a7500057a7500
-00000000000000000000005550000000000000000000000000008880088800000000000000000000000000000000000000000000000000000555500000555500
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000555500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000000000000000000000000000000000055bb550000000000000055500000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000005bbbb50555500000000544450000000000000000000000000555550000000000000555555500000000000000000000
-000555555555500000555500000000000055bbb555bb500000005449445000000000005555000500005858585555500000000544444500000000555555500000
-00555aaaaaa5550005588550000000000005bbbb5bb5500000005499945000000000055665500550005588855588550000000545454500000005777777650000
-055aaa9999aaa550058888555555500000055bbb5bb5000000005499945000000000566666550550005885885588850000000544444500000005777777650000
-059aa555555aa9500585588585555550000557bb5755000000005449445000000005566666655550000555555588855000005545114550000000555555500000
-0559aaaaaaaa95500558558888888850005577777775500000000544450000000005666667665500000000005588885000005111c11150000005222222250000
-005559999995550005855885858885500057557775575000000000545000000005555666557665000000000558888850000055ccccc150000005226666650000
-0005555555555000058888555585850000575577755750000000005450000000056555665d5565000005555588888850000005c666c550000005226777750000
-000000000000000005588550055555000057cc777cc7500000000054500000000056655655d566500005888888888850000005ccccc500000005226eeee50000
-0000000000000000005555000000000000557c757c755000000000545000000005566656655577500005588888888550000005c666c500000005226666650000
-000000000000000000000000000000000005557775500000000000545000000056566755750055000000558888885500000005ccccc500000005222222250000
-00000000000000000000000000000000000005555500000000000054500000000555550050000000000005555555500000000555555500000000555555500000
-00000000000000000000000000000000000000000000000000000055500000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-0c0c0c05000c0005000000050000000533bbbbb3bbb3bbbbbbbbbb3017777777c777777cc77c7cc75cccccccccccccccccccccc55555555566655666555d5555
-c06c60c508000805000c06050ccccc05bbbb8b33bbbbbb8bb8bb3b3071cccccc7cccccc07cc07cc7c5ccccccccccccccccccccc55566665555555555566d6555
-00c0c0050c060c0506c8c605086668053bbbbbbbbbbbb8bbb3bb3b307c1cc1117cccccc07cc07cc7cc5cccccccccccccccccccc5566666655566665166ddddd5
-c06c60c508000805060c00050ccccc05bbb4bbbbb4bbbbbbbbb8b3307cc17777c000000c7cc0c007ccc5ccccccccccccccccccc55666666556d66d65666d6655
-0c0c0c05000c00050000000500000005bb4bbbbbbbbbbbbbb4bbb3507cc11ccc777cc7777cc0c777cccc5cccccccccccccccccc556666665dddddddd666d6655
-55555555555555555555555555555555bbbbb8bbb333bbb33b4bb3507cc171ccccc07ccc7cc07cc7ccccc5ccccccccccccccccc55666666516d66d6566ddddd5
-00c0c80500000005000000050c000c053bbbbb3333533333bbbbb3307cc17c1c000cc0007cc07cc7cccccc5cccccccccccccccc55555555516d66d65555d5555
-000600050068600506666605c60006c5bbbbbb3000000000bbb8bb30c11c7cc577777777c00c7cc7ccccccc555555555ccccccc55555555555d55d55115d5155
-0066600500c0c005066c6605008680050005555bb55550000005555995555000000555588555500050511111111111500000000017777777c777777cc77c7cc7
-000600050068600506666605c60006c500551111111155000055dddd5ddd55000055dddddddd550005011111111115000000000071cccccc7cccccc07cc07cc7
-08c0c00500000005000000050c000c050051111111111500005dddd5ddddd500005dddd55dddd5000550111111111550000000007c1cc1117cccccc07cc07cc7
-555555555555555555555555555555550051111111111500005dddd5ddddd500005ddd5555ddd5000005111111111500000000007cc17777c000000c7cc0c007
-0c0c0c05cc606cc5000000058ccccc850051111111111500005dddd5ddddd500005dddd55dddd50005555dd111dd1550000000007cc11ccc777cc7777cc0c777
-c0ccc8c566606665000800050c000c050051111111116500005ddddd5dddd500005dddd55dddd50000555555d555d500000000007cc171ccccc07ccc7cc07cc7
-0cc8cc0500000005000000050c0c0c050051161116666500005ddddd5dddd500005dddddddddd5000005dd5d5d5d5000000000007cc17c1c000cc0007cc07cc7
-c8ccc0c566606665008080050c000c0555566666666665555555555555555555555555555555555555555dd55515505500000000c11c7cc577777777c00c7cc7
-0c0c0c05cc606cc5000000058ccccc850000000500000005000000055000000500000000000000000000000000000000000000000bbbbbbbbbbbbbbbb3449443
-55555555555555555555555555555555000000050000000500000005555000050000000000000000000000000000000000000000bb33b33b3b33b33bb3499493
-00000005000000050000000500000005055555550555555505555555115555050000000000000000000000000000000000000000b344444444444444bb494493
-0ccccc050000000500000005000000055511111655ddddd555ddddd51111d5550000000000000000000000000000000000000000b349994449999994b3494993
-0c020c05000000050000000500000005511111665dddddd55dddddd51111dd550000000000000000000000000000000000000000bb49449999444499b3494993
-0ccccc05000000050000000500000005511116665dddddd55dddddd511111d550000000000000000000000000000000000000000b349494444999944bb494433
-00000005000000050000000500000005511116665dddddd55dd5ddd511115d550000000000000000000000000000000000000000b344949943944994b3499493
-55555555555555555555555555555555b1111666955dd5558d5555d5111dd5dd0000000000000000000000000000000000000000bb44949393333399b3449443
-00000005000000050000000500000005b11116669dd55dd58d5555d5111dd5d50000000000000000000000000000000000000000000000000000000000000000
-00000005000000050000000500000005511111665dddddd55dd5ddd51111dd550000000000000000000000000000000000000000000000000000000000000000
-00000005000000050000000500000005511111665dddddd55dddddd5111115550000000000000000000000000000000000000000000000000000000000000000
-00000005000000050000000500000005511111165dddddd55dddddd51115dd550000000000000000000000000000000000000000000000000000000000000000
-000000050000000500000005000000055511111655ddddd555ddddd51155d5050000000000000000000000000000000000000000000000000000000000000000
-55555555555555555555555555555555055555550555555505555555555000050000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000050000000500000005000000050000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000050000000500000005000000050000000000000000000000000000000000000000000000000000000000000000
+0000000000000000770077007700770033bbbbb3bbb3bbbbbbbbbb3c17777777c777777cc77c7cc75cccccccccccccccccccccc5eddde777dde7777e77eedd77
+00077000770000007700770077007700bbbb8b33bbbbbb8bb8bb3b3c71cccccc7cccccc07cc07cc7c5ccccccccccccccccccccc5eedee77eddde77ee777ed777
+000770007700000007007000077770003bbbbbbbbbbbb8bbb3bb3b3c7c1cc1117cccccc07cc07cc7cc5cccccccccccccccccccc577eeeeedeeddeee7d77ee77e
+00077000770000000777700007878000bbb4bbbbb4bbbbbbbbb8b33c7cc17777c000000c7cc0c007ccc5ccccccccccccccccccc577777edd77eedd77deeeeeee
+00007000700000000878700007777077bb4bbbbbbbbbbbbbb4bbb3cc7cc11ccc777cc7777cc0c777cccc5cccccccccccccccccc5e7777edd7eedde77ee777eed
+00007000700000000777707700777777bbbbb8bbb333bbb33b4bb3cc7cc171ccccc07ccc7cc07cc7ccccc5ccccccccccccccccc57ee7eeeeeedd7eee7ee77edd
+000077777000000000777777007777003bbbbb3333c33333bbbbb33c7cc17c1c000cc0007cc07cc7cccccc5cccccccccccccccc5e7eeede7ddd77ed77eeeeeee
+00007878700000000067670000606000bbbbbb3cccccccccbbb8bb3cc11c7cc577777777c00c7cc7ccccccc555555555ccccccc5777eddee7777ed777edde77e
+000077777000000077007700770077000005555bb55550000005555995555000000555588555500050511111111111500000000017777777c777777cc77c7cc7
+0000077700770000770077007700770000551111111155000055dddd5ddd55000055dddddddd550005011111111115000000000071cccccc7cccccc07cc07cc7
+000007777770000007777000070070000051111111111500005dddd5ddddd500005dddd55dddd5000550111111111550000000007c1cc1117cccccc07cc07cc7
+000007777770000008787000077770000051111111111500005dddd5ddddd500005ddd5555ddd5000005111111111500000000007cc17777c000000c7cc0c007
+000007777770000007777077078780000051111111111500005dddd5ddddd500005dddd55dddd50005555dd111dd1550000000007cc11ccc777cc7777cc0c777
+000070700707000000777777077770770051111111116500005ddddd5dddd500005dddd55dddd50000555555d555d500000000007cc171ccccc07ccc7cc07cc7
+000000000000000000676700007777770051161116666500005ddddd5dddd500005dddddddddd5000005dd5d5d5d5000000000007cc17c1c000cc0007cc07cc7
+0000000000000000000000000067670055566666666665555555555555555555555555555555555555555dd55515505500000000c11c7cc577777777c00c7cc7
+00000000000000007700770077007700000000050000000500000005500000050000000000000000cccccccccccccccccaaaaaaa0bbbbbbbbbbbbbbbb3449443
+00077000770000007700770077007700000000050000000500000005555000050000000000000000cccaaccaaccaaccaccaa9aaabb33b33b3b33b33bb3499493
+00077000770000000700700007777000055555550555555505555555115555050000000000000000cc9aa9aaaaaaaaaaccaaaaaab344444444444444bb494493
+000770007700000007777000078780005511111655ddddd555ddddd51111d5550000000000000000caaaaaaaaaa9aaaacaaaaaa9b349994449999994b3494993
+00007000700000000878700007777077511111665dddddd55dddddd51111dd550000000000000000caaaaaaaaaaaaaaacaaaaaaabb49449999444499b3494993
+00007000700000000777707700777777511116665dddddd55dddddd511111d550000000000000000ccaa9aaaaaaaa9aaccaa9aaab349494444999944bb494433
+00007777700000000077777700777700511116665dddddd55dd5ddd511115d550000000000000000ccaaaaaaa9aaaaaaccaaaaaab344949943944994b3499493
+00007878700000000067670000606000b1111666955dd5558d5555d5111dd5dd0000000000000000c9aaaaaaaaaaaaaacaaaaaaabb44949393333399b3449443
+00007777700000007700770077007700b11116669dd55dd58d5555d5111dd5d5000000000000000088787777eeeee88eeeee8877e7fffffffffffff7ffffffff
+00000777007700007700770077007700511111665dddddd55dd5ddd51111dd55000000000000000078887778eeee88eeeee88877ee7fffff7fffff7d7ffffffe
+00000777777000000777700007007000511111665dddddd55dddddd5111115550000000000000000777788888888ee8888887887ee77ffff7ffff7dd77ffffee
+00000777777000000878700007777000511111165dddddd55dddddd51115dd550000000000000000777778eee88eeeee88777787eeee7777777f7ddd777ffeee
+000007777770000007777077078780005511111655ddddd555ddddd51155d5050000000000000000877778eeee88eeeee8877788eeee6666777eeddd7777eeee
+00007070070700000077777707777077055555550555555505555555555000050000000000000000e8878eee8eee888eee887888eee7766677eeeddd777d7eee
+00000000000000000067670000777777000000050000000500000005000000050000000000000000ee888eee78e87788eee88888ee7776667eeeeedd77ddd7ee
+00000000000000000000000000676700000000050000000500000005000000050000000000000000eee8eee777877778eeeeee87e7777766eeeeeeed7ddddd7e
 __label__
 88888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888
 88888eeeeee888eeeeee888eeeeee888777777888eeeeee888eeeeee888eeeeee888eeeeee888888888ff8ff8888228822888222822888888822888888228888
@@ -2154,8 +2446,8 @@ __label__
 88888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888
 
 __gff__
-0001000000000000010100000000010100000000000000000101000000000101000000000101010101010101010101010000000001010101010101010101010100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010101010101010101010101000000000000000001010000010101010000000000000100010101010101010100000000000001000100000000000000
+0001000000000000010100000000010100000000000000000101000000000101000000000000000001010000000000000000000000000000010100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010101010101010101010101000000000000000001010000010101010000000000000100010101010101010100000000000001000100010101010101
 __map__
 0006000600060000080606066000000000060000000000000000080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0600080608000606080008000806003100000060000000000600080000060606060600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -2172,8 +2464,14 @@ __map__
 0000006000000000000031000000000606600606000000060806000000060006000600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0808080008080800060600060600063106060600060000310631000008060000000608000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0606080008060600060600060600000600060006000000000000000031060806080631000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000006000000000006080000000000080000000600000000000006000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000060006000000086000600800006008000860000000006000000000003106310000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0008310831080000000608060000000600060006000600603160000606060606060606000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000060006000000086000600800006008000860000000006000000000003106310000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000006000000000006080000000000080000000600000000000006000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __sfx__
 000100000f05013050150501a0501f05022050250502c050320503405000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000100001814014150101500d1500b1300a1300911000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000100001b15021150231501e150161501f150251501f150181501e15026150211501b1301a130191301813018110181100000000000000000000000000000000000000000000000000000000000000000000000
-000200000d340096400f650147300f34010350123501335016360173601735016640166400b6300b6200b62005320053100b31002510066000160004600036000360002600006000060000600006000060000600
+000100001b15021150231501e150161501f150251501f150181501e15026150211501b1301a130221302013018110181100000000000000000000000000000000000000000000000000000000000000000000000
+000200000d340096400f650147300f3401035012350133501636017360173501664016640206300b6200b62005320053100b31002510066000160004600036000360002600006000060000600006000060000600
+000500001dd5000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
