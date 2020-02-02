@@ -102,7 +102,7 @@ function p:hurt(v)
 	 	self.blife -= v
 	 end
 	end
- p.invincible=30
+	p.invincible=30
 	cr.no_hit=false
 end
  
@@ -115,12 +115,12 @@ function p.move()
  p.f=p.vx>0
  local nx=p.x+p.vx
  local ny=p.y+p.vy
-//	if solida(nx-4,p.y,7,6) then
-//  nx=p.x
-// end
-// if solida(p.x-4,ny,7,6) then
-//  ny=p.y
-// end
+--	if solida(nx-4,p.y,7,6) then
+--  nx=p.x
+-- end
+-- if solida(p.x-4,ny,7,6) then
+--  ny=p.y
+-- end
  local newpx={s=p.s,
   x=nx,y=p.y,
   w=7,h=7}
@@ -284,9 +284,9 @@ function draw_life(x,y)
 end
 
 function draw_hud()
- minimapx,minimapy=0,3 //92,3
+ minimapx,minimapy=0,3 --92,3
  draw_minimap(minimapx,minimapy)
- draw_life(80,14) // 4,4
+ draw_life(80,14) -- 4,4
  --draw bombs
  statsx=45
  spr(s_bomb, statsx-4, 4)
@@ -1458,7 +1458,7 @@ l_crystal=253
 ft_garden=4
 ft_tile=10
 levels={
- _level("isaac mini ˇ",
+ _level("isaac picobirth ˇ",
         3,l_game,ft_tile),
  _level("the crypt",
         5,l_crypt,ft_tile),
